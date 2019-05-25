@@ -25,20 +25,6 @@ public class SCARAjava3d extends Frame implements KeyListener {
     private SimpleUniverse universe;
     private BoundingSphere bounds;
     
-    private TransformGroup tgFloor, tgBase, tgArm1, tgArm2, tgArm3;                     // transform groups    
-    private Transform3D trBase, trArm1, trArm2, trArm3;                           // transforms
-    private Transform3D trArm1rot, trArm2rot, trArm3rot;
-    
-    private RotationInterpolator rotJoint1, rotJoint2, rotJoint3;             // rotation interpolators    
-    private float joint1, joint2, joint3 = 0.0f;                              // rotation angles    
-    static final double move = (Math.PI) / 40;
-    Alpha alpha1 = new Alpha(-1, 5000);
-    Alpha alpha2 = new Alpha(-1, 5000);
-    Alpha alpha3 = new Alpha(-1, 5000);
-    
-    Box floor, arm1, arm2;                              // robot parts and floor
-    Cylinder base, arm3;
-    
     Appearance apFloor, apRobot;                          // appearances
     
     Color3f darkGray = new Color3f(0.1f, 0.1f, 0.1f);     // colors
@@ -47,13 +33,21 @@ public class SCARAjava3d extends Frame implements KeyListener {
     Material mat1 = new Material(darkGray, darkGray, darkGray, darkGray, 6f);       // materials
     Material mat2 = new Material(lightGray, lightGray, lightGray, lightGray, 6f);
     
+    TransformGroup tgFloor, tgArm1, tgArm2, tgArm3;
+    Transform3D arm1Position, joint1Position, arm2Position, joint2Position, arm3Position;
+    
+    private float angle1 = 0f, angle2 = 0f, angle3 = 0f, height = -0.2f;
+    private double move = (Math.PI) / 60;
+    
     public SCARAjava3d() {                              // constructor        
         setLayout(new BorderLayout());
         canvas = new Canvas3D(SimpleUniverse.getPreferredConfiguration());
         canvas.addKeyListener(this);
         add(BorderLayout.CENTER,canvas);        
         universe = new SimpleUniverse(canvas);
-        universe.getViewingPlatform().setNominalViewingTransform();        
+        Transform3D observatorMove = new Transform3D();
+        observatorMove.set(new Vector3f(0f,1f,5.0f));
+        universe.getViewingPlatform().getViewPlatformTransform().setTransform(observatorMove);   
         scene = new BranchGroup();
         bounds = new BoundingSphere(new Point3d(0.0,0.0,0.0), 100.0);
         
@@ -92,52 +86,87 @@ public class SCARAjava3d extends Frame implements KeyListener {
 
     private void robotBuilder()
     {
-        tgFloor = new TransformGroup();
-        tgFloor.setCapability(TransformGroup.ALLOW_TRANSFORM_WRITE);
-        scene.addChild(tgFloor);        
-        apFloor = new Appearance();
+        apFloor = new Appearance();                                         // floor
         apFloor.setCapability(Appearance.ALLOW_MATERIAL_WRITE);
         apFloor.setMaterial(mat2);
-        floor = new Box(1.2f, 0.01f, 1.2f, apFloor);
+        Box floor = new Box(2f, 0.01f, 2f, apFloor);
+        tgFloor = new TransformGroup();
+        tgFloor.setCapability(TransformGroup.ALLOW_TRANSFORM_WRITE);
         tgFloor.addChild(floor);
+        scene.addChild(tgFloor);
         
-        trBase = new Transform3D();
-        trBase.set(new Vector3f(0f, 0.25f, 0f));
-        tgBase = new TransformGroup(trBase);
-        tgBase.setCapability(TransformGroup.ALLOW_TRANSFORM_WRITE);
-        tgFloor.addChild(tgBase);
-        apRobot = new Appearance();
+        apRobot = new Appearance();                                         // base
         apRobot.setCapability(Appearance.ALLOW_MATERIAL_WRITE);
         apRobot.setMaterial(mat1);
-        base = new Cylinder(0.06f, 0.5f, apRobot);        
+        Cylinder base = new Cylinder(0.12f, 0.8f, apRobot);
+        Transform3D basePosition = new Transform3D();
+        basePosition.set(new Vector3f(0f, 0.4f, 0f));
+        TransformGroup tgBase = new TransformGroup(basePosition);
+        tgBase.setCapability(TransformGroup.ALLOW_TRANSFORM_WRITE);
         tgBase.addChild(base);
+        tgFloor.addChild(tgBase);
         
-        tgArm1 = new TransformGroup();
+        Box arm1 = new Box (0.3f, 0.05f, 0.12f, apRobot);                   // arm1
+        arm1Position = new Transform3D();
+        tgArm1 = new TransformGroup(arm1Position);
         tgArm1.setCapability(TransformGroup.ALLOW_TRANSFORM_WRITE);
-        Transform3D axis1 = new Transform3D();
-        axis1.set(new Vector3f(0f, 1f, 0f));
-        rotJoint1 = new RotationInterpolator(alpha1, tgArm1, axis1, 0, 0);
-        rotJoint1.setSchedulingBounds(bounds);
-        tgFloor.addChild(tgArm1);
-        trArm1 = new Transform3D();
-        trArm1.set(new Vector3f(0.22f, 0.5f, 0f));
-        arm1 = new Box (0.3f, 0.02f, 0.06f, apRobot);
-        TransformGroup tgArm1Translation = new TransformGroup(trArm1);
-        tgArm1Translation.addChild(arm1);
-        tgArm1.addChild(rotJoint1);
-        tgArm1.addChild(tgArm1Translation);      
+        tgArm1.addChild(arm1);
+        tgBase.addChild(tgArm1);
+        
+        Cylinder joint1 = new Cylinder (0.12f, 0.2f, apRobot);              // joint1
+        joint1Position = new Transform3D();
+        joint1Position.set(new Vector3f(0.3f, 0.05f, 0f));
+        TransformGroup tgJoint1 = new TransformGroup(joint1Position);
+        tgJoint1.setCapability(TransformGroup.ALLOW_TRANSFORM_WRITE);
+        tgJoint1.addChild(joint1);
+        tgArm1.addChild(tgJoint1);
+        
+        Box arm2 = new Box (0.3f, 0.05f, 0.12f, apRobot);                   // arm2
+        arm2Position = new Transform3D();
+        tgArm2 = new TransformGroup(arm2Position);
+        tgArm2.setCapability(TransformGroup.ALLOW_TRANSFORM_WRITE);
+        tgArm2.addChild(arm2);
+        tgJoint1.addChild(tgArm2);
+        
+        Cylinder joint2 = new Cylinder (0.12f, 0.1f, apRobot);              // joint2
+        joint2Position = new Transform3D();
+        joint2Position.set(new Vector3f(0.3f, 0f, 0f));
+        TransformGroup tgJoint2 = new TransformGroup(joint2Position);        
+        tgJoint2.setCapability(TransformGroup.ALLOW_TRANSFORM_WRITE);
+        tgJoint2.addChild(joint2);
+        tgArm2.addChild(tgJoint2);
+        
+        Cylinder arm3 = new Cylinder (0.05f, 0.7f, apRobot);                  // arm3
+        arm3Position = new Transform3D();
+        arm3Position.set(new Vector3f(0f, -0.2f, 0f));
+        tgArm3 = new TransformGroup(arm3Position);
+        tgArm3.setCapability(TransformGroup.ALLOW_TRANSFORM_WRITE);
+        tgArm3.addChild(arm3);
+        tgJoint2.addChild(tgArm3);
 
         
     }
 
     @Override
     public void keyPressed(KeyEvent key) {
-            if (key.getKeyCode() == KeyEvent.VK_LEFT) {
-            joint1 += move;            
-            }
-            if (key.getKeyCode() == KeyEvent.VK_RIGHT) {
-            joint1 -= move;            
-            }
+        if (key.getKeyCode() == KeyEvent.VK_LEFT) {
+            angle1 += move;
+        }
+        if (key.getKeyCode() == KeyEvent.VK_RIGHT) {
+            angle1 -= move;
+        }
+        if (key.getKeyCode() == KeyEvent.VK_A) {
+            if(angle2 < 2.6f)angle2 += move;
+        }
+        if (key.getKeyCode() == KeyEvent.VK_D) {
+            if(angle2 > -2.6f) angle2 -= move;
+        }
+        if (key.getKeyCode() == KeyEvent.VK_UP) {
+            if(height < 0.25f) height += 0.01;
+        }
+        if (key.getKeyCode() == KeyEvent.VK_DOWN) {
+            if(height > -0.25f) height -= 0.01;
+        }                
     }
     
     @Override
@@ -156,8 +185,23 @@ public class SCARAjava3d extends Frame implements KeyListener {
     private class Movement extends TimerTask{
         @Override
         public void run() {
-            rotJoint1.setMinimumAngle(joint1);
-            rotJoint1.setMaximumAngle(joint1);
+            Transform3D tempRotation = new Transform3D();
+            Transform3D tempPosition = new Transform3D();
+            
+            tempPosition.set(new Vector3f(0.3f, 0.35f, 0f));
+            tempRotation.rotY(angle1);
+            tempRotation.mul(tempPosition);
+            tgArm1.setTransform(tempRotation);
+            
+            tempPosition.set(new Vector3f(0.3f, 0.05f, 0f));
+            tempRotation.rotY(angle2);
+            tempRotation.mul(tempPosition);
+            tgArm2.setTransform(tempRotation);  
+            
+            tempPosition.set(new Vector3f(0f, height, 0f));
+            tempRotation.rotY(angle3);
+            tempRotation.mul(tempPosition);
+            tgArm3.setTransform(tempRotation);
         }
     }
 }
