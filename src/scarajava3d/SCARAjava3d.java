@@ -4,26 +4,32 @@ package scarajava3d;
  * @author Marcin Wankiewicz and Lukasz Wroblewski
  */
 
-import com.sun.j3d.utils.behaviors.mouse.*;
 import com.sun.j3d.utils.behaviors.vp.OrbitBehavior;
 import com.sun.j3d.utils.universe.SimpleUniverse;
 import javax.media.j3d.Canvas3D;
 import javax.media.j3d.BranchGroup;
 import com.sun.j3d.utils.geometry.*;
 import com.sun.j3d.utils.image.TextureLoader;
-import java.awt.Frame;
-import java.awt.Label;
 import java.awt.BorderLayout;
+import java.awt.GridLayout;
 import java.awt.event.*;
 import java.util.*;
 import javax.media.j3d.*;
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JPanel;
+import javax.swing.JTextArea;
+import javax.swing.JToggleButton;
 import javax.vecmath.*;
 
-public class SCARAjava3d extends Frame implements KeyListener {
+public class SCARAjava3d extends JFrame implements KeyListener {
 
     private Timer timer = new Timer();
     private BranchGroup scene;
     private Canvas3D canvas;
+    private JPanel panel;
+    private JButton[] buttons;
+    private JTextArea angle1Text, angle2Text, heightText;
     private SimpleUniverse universe;
     private BoundingSphere bounds;
     
@@ -45,16 +51,59 @@ public class SCARAjava3d extends Frame implements KeyListener {
     
     PositionInterpolator fallInterpolator;
     
-    private float angle1 = 0f, angle2 = 0f, angle3 = 0f, height = -0.2f;
+    private float angle1 = 0f, angle2 = 0f, height = -0.2f;
+    private ArrayList<Float> recordedAngles1, recordedAngles2, recordedHeights;
     private double move = (Math.PI) / 80;
-    private boolean moveCrate = false;
+    private boolean moveCrate = false, recording = false, playing = false;
     private int upSteps = 0, crateUpSteps = 0;
+    
+    private class ButtonHandler implements ActionListener{
+       public void actionPerformed(ActionEvent e) {
+            JButton bt = (JButton)e.getSource();
+            if(bt==buttons[0])  joint1Move(true);
+            if(bt==buttons[1])  joint1Move(false);
+            if(bt==buttons[2])  joint2Move(true);
+            if(bt==buttons[3])  joint2Move(false);
+            if(bt==buttons[4])  joint3Move(true);
+            if(bt==buttons[5])  joint3Move(false);
+            if(bt==buttons[6])  grabCrate();
+            if(bt==buttons[7])  setAngle(1, angle1Text.getText());
+            if(bt==buttons[8])  setAngle(2, angle2Text.getText());
+            if(bt==buttons[9])  setAngle(3, heightText.getText());
+       }
+       
+       private void setAngle(int number, String value)
+       {
+           float actualValue = 0;
+           try
+           {
+               actualValue = Float.parseFloat(value);
+           }
+           catch(Exception e){}
+           if(number == 1)
+           {
+               angle1 = actualValue;
+           }
+           else if(number == 2)
+           {
+               if(actualValue > 2.6f) actualValue = 2.6f;
+               else if(actualValue < -2.6f) actualValue = -2.6f;
+               angle2 = actualValue;
+           }
+           else if(number == 3)
+           {
+               if(actualValue > 0.2f) actualValue = 0.2f;
+               else if(actualValue < -0.2f) actualValue = -0.2f;
+               height = actualValue;
+           }
+       }
+    }
     
     public SCARAjava3d() {                              // constructor        
         setLayout(new BorderLayout());
         canvas = new Canvas3D(SimpleUniverse.getPreferredConfiguration());
         canvas.addKeyListener(this);
-        add(BorderLayout.CENTER,canvas);        
+        add(BorderLayout.CENTER,canvas);
         universe = new SimpleUniverse(canvas);
         Transform3D observatorMove = new Transform3D();
         observatorMove.set(new Vector3f(0f,1f,5.0f));
@@ -62,7 +111,9 @@ public class SCARAjava3d extends Frame implements KeyListener {
         scene = new BranchGroup();
         bounds = new BoundingSphere(new Point3d(0.0,0.0,0.0), 100.0);
         
-        robotBuilder(); 
+        robotBuilder();
+        guiBuilder();
+        add(BorderLayout.WEST,panel);
 
         OrbitBehavior orbit = new OrbitBehavior(canvas, OrbitBehavior.REVERSE_ROTATE);      // mouse functionality
         orbit.setSchedulingBounds(new BoundingSphere());
@@ -169,42 +220,92 @@ public class SCARAjava3d extends Frame implements KeyListener {
         tgCrate.addChild(crate);
         tgFloor.addChild(tgCrate);
     }
+    
+    private void guiBuilder()
+    {
+        buttons = new JButton[10];
+        panel = new JPanel();
+        JPanel buttonsPanel = new JPanel();
+        JPanel writingPanel = new JPanel();
+        GridLayout grid1 = new GridLayout(5,2,3,3);
+        GridLayout grid2 = new GridLayout(3,2,3,3);
+        panel.setLayout(new BorderLayout());
+        buttonsPanel.setLayout(grid1);
+        writingPanel.setLayout(grid2);
+        panel.add(BorderLayout.NORTH, buttonsPanel);
+        panel.add(BorderLayout.WEST, writingPanel);
+        buttons[0] = new JButton("Left 1");
+        buttons[0].addActionListener(new ButtonHandler());
+        buttonsPanel.add(buttons[0]);
+        buttons[1] = new JButton("Right 1");
+        buttons[1].addActionListener(new ButtonHandler());
+        buttonsPanel.add(buttons[1]);
+        buttons[2] = new JButton("Left 2");
+        buttons[2].addActionListener(new ButtonHandler());
+        buttonsPanel.add(buttons[2]);
+        buttons[3] = new JButton("Right 2");
+        buttons[3].addActionListener(new ButtonHandler());
+        buttonsPanel.add(buttons[3]);
+        buttons[4] = new JButton("Up");
+        buttons[4].addActionListener(new ButtonHandler());
+        buttonsPanel.add(buttons[4]);
+        buttons[5] = new JButton("Down");
+        buttons[5].addActionListener(new ButtonHandler());
+        buttonsPanel.add(buttons[5]);
+        buttons[6] = new JButton("Grab crate");
+        buttons[6].addActionListener(new ButtonHandler());
+        buttonsPanel.add(buttons[6]);
+        
+        angle1Text = new JTextArea();
+        writingPanel.add(angle1Text);
+        buttons[7] = new JButton("Set angle 1");
+        buttons[7].addActionListener(new ButtonHandler());
+        writingPanel.add(buttons[7]);
+        angle2Text = new JTextArea();
+        writingPanel.add(angle2Text);
+        buttons[8] = new JButton("Set angle 2 (-2.6, 2.6)");
+        buttons[8].addActionListener(new ButtonHandler());
+        writingPanel.add(buttons[8]);
+        heightText = new JTextArea();
+        writingPanel.add(heightText);
+        buttons[9] = new JButton("Set height (-0.2, 0.2)");
+        buttons[9].addActionListener(new ButtonHandler());
+        writingPanel.add(buttons[9]);
+        
+//        JToggleButton record = new JToggleButton("Record");
+//        panel.add(record);
+//        JToggleButton play = new JToggleButton("Play");
+//        panel.add(play);
+    }
 
     @Override
     public void keyPressed(KeyEvent key) {
         if (key.getKeyCode() == KeyEvent.VK_LEFT) {
-            angle1 += move;
+            joint1Move(true);
         }
         if (key.getKeyCode() == KeyEvent.VK_RIGHT) {
-            angle1 -= move;
+            joint1Move(false);
         }
         if (key.getKeyCode() == KeyEvent.VK_A) {
-            if(angle2 < 2.6f)angle2 += move;
+            joint2Move(true);
         }
         if (key.getKeyCode() == KeyEvent.VK_D) {
-            if(angle2 > -2.6f) angle2 -= move;
+            joint2Move(false);
         }
         if (key.getKeyCode() == KeyEvent.VK_UP) {
-            if(height < 0.2f) {
-                height += 0.01;
-                upSteps++;
-                if(moveCrate) crateUpSteps++;
-            }
+            joint3Move(true);
         }
         if (key.getKeyCode() == KeyEvent.VK_DOWN) {
-            if(height > -0.2f) {
-                height -= 0.01;
-                upSteps--;
-                if(moveCrate) crateUpSteps--;
-            }
+            joint3Move(false);
         }
         if (key.getKeyCode() == KeyEvent.VK_SPACE) {
-            moveCrate = !moveCrate;
-            if (moveCrate) crateUpSteps = upSteps;
+            grabCrate();
         }
-        if (key.getKeyCode() == KeyEvent.VK_C)
-        {
-        //    System.out.print(crateHeight);
+        if (key.getKeyCode() == KeyEvent.VK_R) {
+            record();
+        }
+        if (key.getKeyCode() == KeyEvent.VK_P) {
+            play();
         }
     }
     
@@ -214,6 +315,67 @@ public class SCARAjava3d extends Frame implements KeyListener {
 
     @Override
     public void keyTyped(KeyEvent key) {
+    }
+    
+    private void joint1Move(boolean ifLeft)
+    {
+        if(ifLeft) angle1 += move;
+        else angle1 -=move;
+    }
+    
+    private void joint2Move(boolean ifLeft)
+    {
+        if(ifLeft && angle2 < 2.6f) angle2 += move;
+        else if(!ifLeft && angle2 > -2.6f) angle2 -=move;
+    }
+    
+    private void joint3Move(boolean ifUp)
+    {
+        if(ifUp)
+        {
+            if(height < 0.2f) {
+                height += 0.01;
+                upSteps++;
+                if(moveCrate) crateUpSteps++;
+            }
+        }
+        else
+        {
+            if(height > -0.2f) {
+                height -= 0.01;
+                upSteps--;
+                if(moveCrate) crateUpSteps--;
+            }
+        }
+    }
+    
+    private void grabCrate()
+    {
+         moveCrate = !moveCrate;
+         if (moveCrate) crateUpSteps = upSteps;
+    }
+    
+    private void record()
+    {
+        playing = false;
+        recording = !recording;
+        System.out.print("Recording: " + recording + "\n");
+        if(recording)
+        {
+            recordedAngles1 = new ArrayList<Float>();
+            recordedAngles2 = new ArrayList<Float>();
+            recordedHeights = new ArrayList<Float>();
+            recordedAngles1.add(angle1);
+            recordedAngles2.add(angle2);
+            recordedHeights.add(height);
+        }
+    }
+    
+    private void play()
+    {
+        recording = false;
+        playing = !playing;
+        System.out.print("Playing: " + playing + "\n");
     }
     
     public static void main(String[] args) {
@@ -238,7 +400,7 @@ public class SCARAjava3d extends Frame implements KeyListener {
             tgArm2.setTransform(tempRotation);  
             
             tempPosition.set(new Vector3f(0f, height, 0f));
-            tempRotation.rotY(angle3);
+            tempRotation.rotY(0f);
             tempRotation.mul(tempPosition);
             tgArm3.setTransform(tempRotation);
             
@@ -259,4 +421,6 @@ public class SCARAjava3d extends Frame implements KeyListener {
             }
         }
     }
-}
+
+   }
+
