@@ -11,6 +11,7 @@ import javax.media.j3d.BranchGroup;
 import com.sun.j3d.utils.geometry.*;
 import com.sun.j3d.utils.image.TextureLoader;
 import java.awt.BorderLayout;
+import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.awt.event.*;
 import java.util.*;
@@ -25,6 +26,7 @@ import javax.vecmath.*;
 public class SCARAjava3d extends JFrame implements KeyListener {
 
     private Timer timer = new Timer();
+    private Timer playTimer = new Timer();
     private BranchGroup scene;
     private Canvas3D canvas;
     private JPanel panel;
@@ -47,15 +49,14 @@ public class SCARAjava3d extends JFrame implements KeyListener {
     Material mat2 = new Material(lightGray, lightGray, lightGray, lightGray, 6f);
     
     TransformGroup tgFloor, tgArm1, tgArm2, tgArm3, tgCrate;
-    Transform3D arm1Position, joint1Position, arm2Position, joint2Position, arm3Position, cratePosition;
-    
-    PositionInterpolator fallInterpolator;
+    Transform3D arm1Position, joint1Position, arm2Position, joint2Position, arm3Position, cratePosition, crateStartPosition;
     
     private float angle1 = 0f, angle2 = 0f, height = -0.2f;
     private ArrayList<Float> recordedAngles1, recordedAngles2, recordedHeights;
+    private ArrayList<Boolean> recordedGrabs;
     private double move = (Math.PI) / 80;
-    private boolean moveCrate = false, recording = false, playing = false;
-    private int upSteps = 0, crateUpSteps = 0;
+    private boolean moveCrate = false, recording = false, playing = false, crateGround = true;
+    private int upSteps = 0, crateUpSteps = 0, i=0;
     
     private class ButtonHandler implements ActionListener{
        public void actionPerformed(ActionEvent e) {
@@ -110,7 +111,6 @@ public class SCARAjava3d extends JFrame implements KeyListener {
         universe.getViewingPlatform().getViewPlatformTransform().setTransform(observatorMove);   
         scene = new BranchGroup();
         bounds = new BoundingSphere(new Point3d(0.0,0.0,0.0), 100.0);
-        
         robotBuilder();
         guiBuilder();
         add(BorderLayout.WEST,panel);
@@ -126,7 +126,13 @@ public class SCARAjava3d extends JFrame implements KeyListener {
 
         
         universe.addBranchGraph(scene);                                     // add everything to universe
-        timer.scheduleAtFixedRate(new Movement(), 10, 10);
+        timer.scheduleAtFixedRate(new Movement(), 0, 10);
+        recordedAngles1 = new ArrayList<Float>();
+        recordedAngles2 = new ArrayList<Float>();
+        recordedHeights = new ArrayList<Float>();
+        recordedGrabs = new ArrayList<Boolean>();
+        
+        canvas.requestFocusInWindow();
         
         setSize(1024,768);
         setTitle("SCARA - by Marcin Wankiewicz and Lukasz Wroblewski");
@@ -214,7 +220,9 @@ public class SCARAjava3d extends JFrame implements KeyListener {
         apCrate.setMaterial(mat2);
         Box crate = new Box(0.15f, 0.15f, 0.15f, Box.GENERATE_TEXTURE_COORDS+Box.GENERATE_NORMALS, apCrate);
         cratePosition = new Transform3D();
+        crateStartPosition = new Transform3D();
         cratePosition.set(new Vector3f(0.8f, 0.165f, 0.5f));
+        crateStartPosition.set(new Vector3f(0.8f, 0.165f, 0.5f));
         tgCrate = new TransformGroup(cratePosition);
         tgCrate.setCapability(TransformGroup.ALLOW_TRANSFORM_WRITE);
         tgCrate.addChild(crate);
@@ -223,17 +231,21 @@ public class SCARAjava3d extends JFrame implements KeyListener {
     
     private void guiBuilder()
     {
-        buttons = new JButton[10];
+        buttons = new JButton[12];
         panel = new JPanel();
         JPanel buttonsPanel = new JPanel();
         JPanel writingPanel = new JPanel();
-        GridLayout grid1 = new GridLayout(5,2,3,3);
-        GridLayout grid2 = new GridLayout(3,2,3,3);
-        panel.setLayout(new BorderLayout());
+        JPanel recordPanel = new JPanel();
+        GridLayout grid1 = new GridLayout(4,2,10,5);
+        GridLayout grid2 = new GridLayout(3,2,10,5);
+        GridLayout grid3 = new GridLayout(1,2,10,5);
+        panel.setLayout(new GridLayout(3,1,10,5));
         buttonsPanel.setLayout(grid1);
         writingPanel.setLayout(grid2);
-        panel.add(BorderLayout.NORTH, buttonsPanel);
-        panel.add(BorderLayout.WEST, writingPanel);
+        recordPanel.setLayout(grid3);
+        panel.add(buttonsPanel);
+        panel.add(writingPanel);
+        panel.add(recordPanel);
         buttons[0] = new JButton("Left 1");
         buttons[0].addActionListener(new ButtonHandler());
         buttonsPanel.add(buttons[0]);
@@ -271,6 +283,18 @@ public class SCARAjava3d extends JFrame implements KeyListener {
         buttons[9] = new JButton("Set height (-0.2, 0.2)");
         buttons[9].addActionListener(new ButtonHandler());
         writingPanel.add(buttons[9]);
+        
+        buttons[10] = new JButton("Record");
+        buttons[10].addActionListener(new ButtonHandler());
+        recordPanel.add(buttons[10]);
+        buttons[11] = new JButton("Play");
+        buttons[11].addActionListener(new ButtonHandler());
+        recordPanel.add(buttons[11]);
+        
+        for(int j=0; j<buttons.length; j++)
+        {
+            buttons[j].setFocusable(false);
+        }
         
 //        JToggleButton record = new JToggleButton("Record");
 //        panel.add(record);
@@ -321,12 +345,23 @@ public class SCARAjava3d extends JFrame implements KeyListener {
     {
         if(ifLeft) angle1 += move;
         else angle1 -=move;
+        recordedAngles1.add(angle1);
+        recordedAngles2.add(angle2);
+        recordedHeights.add(height);
+        recordedGrabs.add(moveCrate);
     }
     
     private void joint2Move(boolean ifLeft)
     {
         if(ifLeft && angle2 < 2.6f) angle2 += move;
         else if(!ifLeft && angle2 > -2.6f) angle2 -=move;
+        if(angle2 < 2.6f && angle2 > -2.6f)
+        {
+            recordedAngles1.add(angle1);
+            recordedAngles2.add(angle2);
+            recordedHeights.add(height);
+            recordedGrabs.add(moveCrate);
+        }
     }
     
     private void joint3Move(boolean ifUp)
@@ -337,6 +372,10 @@ public class SCARAjava3d extends JFrame implements KeyListener {
                 height += 0.01;
                 upSteps++;
                 if(moveCrate) crateUpSteps++;
+                    recordedAngles1.add(angle1);
+                    recordedAngles2.add(angle2);
+                    recordedHeights.add(height);
+                    recordedGrabs.add(moveCrate);
             }
         }
         else
@@ -345,82 +384,169 @@ public class SCARAjava3d extends JFrame implements KeyListener {
                 height -= 0.01;
                 upSteps--;
                 if(moveCrate) crateUpSteps--;
+                    recordedAngles1.add(angle1);
+                    recordedAngles2.add(angle2);
+                    recordedHeights.add(height);
+                    recordedGrabs.add(moveCrate);
             }
         }
     }
     
     private void grabCrate()
     {
-         moveCrate = !moveCrate;
-         if (moveCrate) crateUpSteps = upSteps;
+        moveCrate = !moveCrate;
+        if (moveCrate) crateUpSteps = upSteps;
+        recordedAngles1.add(angle1);
+        recordedAngles2.add(angle2);
+        recordedHeights.add(height);
+        recordedGrabs.add(moveCrate);
     }
     
     private void record()
     {
-        playing = false;
+        if(playing)
+        {
+            playing = false;
+            timer = new Timer();
+            timer.scheduleAtFixedRate(new Movement(), 0, 10);
+            playTimer.cancel();
+        }
         recording = !recording;
         System.out.print("Recording: " + recording + "\n");
         if(recording)
         {
+            tgCrate.getTransform(crateStartPosition);
             recordedAngles1 = new ArrayList<Float>();
             recordedAngles2 = new ArrayList<Float>();
             recordedHeights = new ArrayList<Float>();
+            recordedGrabs = new ArrayList<Boolean>();
             recordedAngles1.add(angle1);
             recordedAngles2.add(angle2);
             recordedHeights.add(height);
+            recordedGrabs.add(moveCrate);
         }
     }
     
     private void play()
     {
+        if(recordedAngles1.size() == 0) return;
         recording = false;
         playing = !playing;
         System.out.print("Playing: " + playing + "\n");
+        if(playing)
+        {
+            tgCrate.setTransform(crateStartPosition);
+            playTimer = new Timer();
+            playTimer.scheduleAtFixedRate(new PlayRecording(), 0, 50);
+            timer.cancel();
+        }
+        else
+        {
+            timer = new Timer();
+            timer.scheduleAtFixedRate(new Movement(), 0, 10);
+            playTimer.cancel();
+        }
+    }
+    
+    private void fixFocus()
+    {
+        canvas.requestFocusInWindow();
     }
     
     public static void main(String[] args) {
         System.setProperty("sun.awt.noerasebackground", "true");
         SCARAjava3d thisObject = new SCARAjava3d();
+        thisObject.fixFocus();
     }
     
     private class Movement extends TimerTask{
         @Override
-        public void run() {
-            Transform3D tempRotation = new Transform3D();
-            Transform3D tempPosition = new Transform3D();
-            
-            tempPosition.set(new Vector3f(0.3f, 0.35f, 0f));
-            tempRotation.rotY(angle1);
-            tempRotation.mul(tempPosition);
-            tgArm1.setTransform(tempRotation);
-            
-            tempPosition.set(new Vector3f(0.3f, 0.05f, 0f));
-            tempRotation.rotY(angle2);
-            tempRotation.mul(tempPosition);
-            tgArm2.setTransform(tempRotation);  
-            
-            tempPosition.set(new Vector3f(0f, height, 0f));
-            tempRotation.rotY(0f);
-            tempRotation.mul(tempPosition);
-            tgArm3.setTransform(tempRotation);
-            
-            tgArm3.getLocalToVworld(arm3Position);
-            Transform3D positionFix = new Transform3D();
-            positionFix.set(new Vector3f(0f, height-0.5f, 0f));
-            arm3Position.mul(positionFix);
-            if(moveCrate)
+        public void run() {  
+            i=0;
+            if(!playing)
             {
-                tgCrate.setTransform(arm3Position);        
-            }
-            else if(crateUpSteps > 0)
-            {
-                positionFix.setTranslation(new Vector3f(0f, crateUpSteps*0.01f-height-0.2f, 0f));
+                Transform3D tempRotation = new Transform3D();
+                Transform3D tempPosition = new Transform3D();
+                tempPosition.set(new Vector3f(0.3f, 0.35f, 0f));
+                tempRotation.rotY(angle1);
+                tempRotation.mul(tempPosition);
+                tgArm1.setTransform(tempRotation);
+
+                tempPosition.set(new Vector3f(0.3f, 0.05f, 0f));
+                tempRotation.rotY(angle2);
+                tempRotation.mul(tempPosition);
+                tgArm2.setTransform(tempRotation);  
+
+                tempPosition.set(new Vector3f(0f, height, 0f));
+                tempRotation.rotY(0f);
+                tempRotation.mul(tempPosition);
+                tgArm3.setTransform(tempRotation);
+
+                tgArm3.getLocalToVworld(arm3Position);
+                Transform3D positionFix = new Transform3D();
+                positionFix.set(new Vector3f(0f, height-0.5f, 0f));
                 arm3Position.mul(positionFix);
-                tgCrate.setTransform(arm3Position);
-                crateUpSteps--;
+                if(moveCrate)
+                {
+                    tgCrate.setTransform(arm3Position);        
+                }
+                else if(crateUpSteps > 0)
+                {
+                    positionFix.setTranslation(new Vector3f(0f, crateUpSteps*0.01f-height-0.2f, 0f));
+                    arm3Position.mul(positionFix);
+                    tgCrate.setTransform(arm3Position);
+                    crateUpSteps--;
+                }
             }
         }
     }
+    
+    private class PlayRecording extends TimerTask{
+        @Override
+        public void run() {
+            if(playing)
+            {
+                Transform3D tempRotation = new Transform3D();
+                Transform3D tempPosition = new Transform3D();
+                tempPosition.set(new Vector3f(0.3f, 0.35f, 0f));
+                tempRotation.rotY(recordedAngles1.get(i));
+                tempRotation.mul(tempPosition);
+                tgArm1.setTransform(tempRotation);
 
-   }
+                tempPosition.set(new Vector3f(0.3f, 0.05f, 0f));
+                tempRotation.rotY(recordedAngles2.get(i));
+                tempRotation.mul(tempPosition);
+                tgArm2.setTransform(tempRotation);  
+
+                tempPosition.set(new Vector3f(0f, recordedHeights.get(i), 0f));
+                tempRotation.rotY(0f);
+                tempRotation.mul(tempPosition);
+                tgArm3.setTransform(tempRotation); 
+                
+                tgArm3.getLocalToVworld(arm3Position);
+                Transform3D positionFix = new Transform3D();
+                positionFix.set(new Vector3f(0f, recordedHeights.get(i)-0.5f, 0f));
+                arm3Position.mul(positionFix);
+                if(recordedGrabs.get(i))
+                {
+                    tgCrate.setTransform(arm3Position);    
+                    crateGround = false;
+                }
+                else if (!crateGround)
+                {
+                    positionFix.set(new Vector3f(0f, -(recordedHeights.get(i)+0.2f), 0f));
+                    arm3Position.mul(positionFix);
+                    tgCrate.setTransform(arm3Position);
+                    crateGround = true;
+                }
+                i++;
+                if(i>=recordedAngles1.size())
+                {
+                    i=0;
+                    tgCrate.setTransform(crateStartPosition);
+                }
+            }
+        }
+    }
+ }
 
