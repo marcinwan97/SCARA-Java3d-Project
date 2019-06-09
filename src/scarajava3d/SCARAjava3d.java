@@ -11,16 +11,18 @@ import javax.media.j3d.BranchGroup;
 import com.sun.j3d.utils.geometry.*;
 import com.sun.j3d.utils.image.TextureLoader;
 import java.awt.BorderLayout;
-import java.awt.Dimension;
+import java.awt.Color;
+import java.awt.Font;
 import java.awt.GridLayout;
 import java.awt.event.*;
 import java.util.*;
 import javax.media.j3d.*;
 import javax.swing.JButton;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextArea;
-import javax.swing.JToggleButton;
+import javax.swing.SwingConstants;
 import javax.vecmath.*;
 
 public class SCARAjava3d extends JFrame implements KeyListener {
@@ -32,6 +34,7 @@ public class SCARAjava3d extends JFrame implements KeyListener {
     private JPanel panel;
     private JButton[] buttons;
     private JTextArea angle1Text, angle2Text, heightText;
+    private JLabel infoText;
     private SimpleUniverse universe;
     private BoundingSphere bounds;
     
@@ -58,7 +61,7 @@ public class SCARAjava3d extends JFrame implements KeyListener {
     private boolean moveCrate = false, recording = false, playing = false, crateGround = true;
     private int upSteps = 0, crateUpSteps = 0, i=0;
     
-    private class ButtonHandler implements ActionListener{
+    private class ButtonHandler implements ActionListener{                              // gui buttons listener
        public void actionPerformed(ActionEvent e) {
             JButton bt = (JButton)e.getSource();
             if(bt==buttons[0])  joint1Move(true);
@@ -71,16 +74,20 @@ public class SCARAjava3d extends JFrame implements KeyListener {
             if(bt==buttons[7])  setAngle(1, angle1Text.getText());
             if(bt==buttons[8])  setAngle(2, angle2Text.getText());
             if(bt==buttons[9])  setAngle(3, heightText.getText());
+            if(bt==buttons[10]) record();
+            if(bt==buttons[11]) play();
+            if(bt==buttons[12]) resetView();
        }
        
-       private void setAngle(int number, String value)
+       private void setAngle(int number, String value)                                  // set angles via gui
        {
            float actualValue = 0;
+           boolean goodValue = true;
            try
            {
                actualValue = Float.parseFloat(value);
            }
-           catch(Exception e){}
+           catch(Exception e){goodValue=false;}
            if(number == 1)
            {
                angle1 = actualValue;
@@ -97,6 +104,13 @@ public class SCARAjava3d extends JFrame implements KeyListener {
                else if(actualValue < -0.2f) actualValue = -0.2f;
                height = actualValue;
            }
+           if(goodValue && recording)                               // add to record lists
+           {
+                recordedAngles1.add(angle1);
+                recordedAngles2.add(angle2);
+                recordedHeights.add(height);
+                recordedGrabs.add(moveCrate);
+           }
        }
     }
     
@@ -108,12 +122,12 @@ public class SCARAjava3d extends JFrame implements KeyListener {
         universe = new SimpleUniverse(canvas);
         Transform3D observatorMove = new Transform3D();
         observatorMove.set(new Vector3f(0f,1f,5.0f));
-        universe.getViewingPlatform().getViewPlatformTransform().setTransform(observatorMove);   
+        universe.getViewingPlatform().getViewPlatformTransform().setTransform(observatorMove);          // move view
         scene = new BranchGroup();
         bounds = new BoundingSphere(new Point3d(0.0,0.0,0.0), 100.0);
         robotBuilder();
         guiBuilder();
-        add(BorderLayout.WEST,panel);
+        add(BorderLayout.WEST,panel);                                                               // add gui
 
         OrbitBehavior orbit = new OrbitBehavior(canvas, OrbitBehavior.REVERSE_ROTATE);      // mouse functionality
         orbit.setSchedulingBounds(new BoundingSphere());
@@ -127,14 +141,14 @@ public class SCARAjava3d extends JFrame implements KeyListener {
         
         universe.addBranchGraph(scene);                                     // add everything to universe
         timer.scheduleAtFixedRate(new Movement(), 0, 10);
-        recordedAngles1 = new ArrayList<Float>();
+        recordedAngles1 = new ArrayList<Float>();                           // init record lists
         recordedAngles2 = new ArrayList<Float>();
         recordedHeights = new ArrayList<Float>();
         recordedGrabs = new ArrayList<Boolean>();
         
-        canvas.requestFocusInWindow();
+        canvas.requestFocusInWindow();                                      // make canvas focused, not the text fields
         
-        setSize(1024,768);
+        setSize(1024,768);                                                  // set window parameters
         setTitle("SCARA - by Marcin Wankiewicz and Lukasz Wroblewski");
         setVisible(true);
         setResizable(false);
@@ -231,14 +245,14 @@ public class SCARAjava3d extends JFrame implements KeyListener {
     
     private void guiBuilder()
     {
-        buttons = new JButton[12];
+        buttons = new JButton[13];
         panel = new JPanel();
-        JPanel buttonsPanel = new JPanel();
-        JPanel writingPanel = new JPanel();
-        JPanel recordPanel = new JPanel();
-        GridLayout grid1 = new GridLayout(4,2,10,5);
-        GridLayout grid2 = new GridLayout(3,2,10,5);
-        GridLayout grid3 = new GridLayout(1,2,10,5);
+        JPanel buttonsPanel = new JPanel();                         // move buttons
+        JPanel writingPanel = new JPanel();                         // angle inputs
+        JPanel recordPanel = new JPanel();                          // record and play buttons
+        GridLayout grid1 = new GridLayout(5,2,10,5);
+        GridLayout grid2 = new GridLayout(4,2,10,5);
+        GridLayout grid3 = new GridLayout(4,2,10,5);
         panel.setLayout(new GridLayout(3,1,10,5));
         buttonsPanel.setLayout(grid1);
         writingPanel.setLayout(grid2);
@@ -246,7 +260,8 @@ public class SCARAjava3d extends JFrame implements KeyListener {
         panel.add(buttonsPanel);
         panel.add(writingPanel);
         panel.add(recordPanel);
-        buttons[0] = new JButton("Left 1");
+        
+        buttons[0] = new JButton("Left 1");                                   // add move buttons
         buttons[0].addActionListener(new ButtonHandler());
         buttonsPanel.add(buttons[0]);
         buttons[1] = new JButton("Right 1");
@@ -267,8 +282,11 @@ public class SCARAjava3d extends JFrame implements KeyListener {
         buttons[6] = new JButton("Grab crate");
         buttons[6].addActionListener(new ButtonHandler());
         buttonsPanel.add(buttons[6]);
+        buttons[12] = new JButton("Reset view");
+        buttons[12].addActionListener(new ButtonHandler());
+        buttonsPanel.add(buttons[12]);
         
-        angle1Text = new JTextArea();
+        angle1Text = new JTextArea();                                         // add angle inputs
         writingPanel.add(angle1Text);
         buttons[7] = new JButton("Set angle 1");
         buttons[7].addActionListener(new ButtonHandler());
@@ -284,26 +302,26 @@ public class SCARAjava3d extends JFrame implements KeyListener {
         buttons[9].addActionListener(new ButtonHandler());
         writingPanel.add(buttons[9]);
         
-        buttons[10] = new JButton("Record");
+        buttons[10] = new JButton("Record");                                  // add record and play buttons
         buttons[10].addActionListener(new ButtonHandler());
         recordPanel.add(buttons[10]);
         buttons[11] = new JButton("Play");
         buttons[11].addActionListener(new ButtonHandler());
         recordPanel.add(buttons[11]);
+        infoText = new JLabel("");
+        infoText.setHorizontalAlignment(SwingConstants.CENTER);
+        infoText.setForeground(Color.RED);
+        infoText.setFont(new Font("Arial", Font.PLAIN, 20));
+        recordPanel.add(infoText);
         
-        for(int j=0; j<buttons.length; j++)
+        for(int j=0; j<buttons.length; j++)                                   // make buttons unfocusable in order to move with keyboard easier
         {
             buttons[j].setFocusable(false);
         }
-        
-//        JToggleButton record = new JToggleButton("Record");
-//        panel.add(record);
-//        JToggleButton play = new JToggleButton("Play");
-//        panel.add(play);
     }
 
     @Override
-    public void keyPressed(KeyEvent key) {
+    public void keyPressed(KeyEvent key) {                                    // keyboard listener
         if (key.getKeyCode() == KeyEvent.VK_LEFT) {
             joint1Move(true);
         }
@@ -331,6 +349,9 @@ public class SCARAjava3d extends JFrame implements KeyListener {
         if (key.getKeyCode() == KeyEvent.VK_P) {
             play();
         }
+        if (key.getKeyCode() == KeyEvent.VK_0) {
+            resetView();
+        }
     }
     
     @Override
@@ -341,21 +362,25 @@ public class SCARAjava3d extends JFrame implements KeyListener {
     public void keyTyped(KeyEvent key) {
     }
     
-    private void joint1Move(boolean ifLeft)
+    private void joint1Move(boolean ifLeft)                              // moving robot parts functions and record them if recording
     {
         if(ifLeft) angle1 += move;
         else angle1 -=move;
-        recordedAngles1.add(angle1);
-        recordedAngles2.add(angle2);
-        recordedHeights.add(height);
-        recordedGrabs.add(moveCrate);
+        if(recording)
+        {
+            recordedAngles1.add(angle1);
+            recordedAngles2.add(angle2);
+            recordedHeights.add(height);
+            recordedGrabs.add(moveCrate);
+        }
+
     }
     
     private void joint2Move(boolean ifLeft)
     {
         if(ifLeft && angle2 < 2.6f) angle2 += move;
         else if(!ifLeft && angle2 > -2.6f) angle2 -=move;
-        if(angle2 < 2.6f && angle2 > -2.6f)
+        if(angle2 < 2.6f && angle2 > -2.6f && recording)
         {
             recordedAngles1.add(angle1);
             recordedAngles2.add(angle2);
@@ -372,10 +397,13 @@ public class SCARAjava3d extends JFrame implements KeyListener {
                 height += 0.01;
                 upSteps++;
                 if(moveCrate) crateUpSteps++;
+                if(recording)
+                {
                     recordedAngles1.add(angle1);
                     recordedAngles2.add(angle2);
                     recordedHeights.add(height);
                     recordedGrabs.add(moveCrate);
+                }
             }
         }
         else
@@ -384,10 +412,13 @@ public class SCARAjava3d extends JFrame implements KeyListener {
                 height -= 0.01;
                 upSteps--;
                 if(moveCrate) crateUpSteps--;
+                if(recording)
+                {
                     recordedAngles1.add(angle1);
                     recordedAngles2.add(angle2);
                     recordedHeights.add(height);
-                    recordedGrabs.add(moveCrate);
+                    recordedGrabs.add(moveCrate); 
+                }  
             }
         }
     }
@@ -396,10 +427,14 @@ public class SCARAjava3d extends JFrame implements KeyListener {
     {
         moveCrate = !moveCrate;
         if (moveCrate) crateUpSteps = upSteps;
-        recordedAngles1.add(angle1);
-        recordedAngles2.add(angle2);
-        recordedHeights.add(height);
-        recordedGrabs.add(moveCrate);
+        if(recording)
+        {
+           recordedAngles1.add(angle1);
+           recordedAngles2.add(angle2);
+           recordedHeights.add(height);
+           recordedGrabs.add(moveCrate);            
+        }
+
     }
     
     private void record()
@@ -408,8 +443,8 @@ public class SCARAjava3d extends JFrame implements KeyListener {
         {
             playing = false;
             timer = new Timer();
-            timer.scheduleAtFixedRate(new Movement(), 0, 10);
-            playTimer.cancel();
+            timer.scheduleAtFixedRate(new Movement(), 0, 10);               // start default application timer
+            playTimer.cancel();                                             // cancel animation timer
         }
         recording = !recording;
         System.out.print("Recording: " + recording + "\n");
@@ -424,42 +459,52 @@ public class SCARAjava3d extends JFrame implements KeyListener {
             recordedAngles2.add(angle2);
             recordedHeights.add(height);
             recordedGrabs.add(moveCrate);
+            infoText.setText("Recording");
         }
+        else infoText.setText("");
     }
     
     private void play()
     {
-        if(recordedAngles1.size() == 0) return;
+        if(recordedAngles1.size() == 0) return;                             // return if nothing is recorded
         recording = false;
         playing = !playing;
         System.out.print("Playing: " + playing + "\n");
         if(playing)
         {
-            tgCrate.setTransform(crateStartPosition);
             playTimer = new Timer();
-            playTimer.scheduleAtFixedRate(new PlayRecording(), 0, 50);
+            playTimer.scheduleAtFixedRate(new PlayRecording(), 0, 60);      // start animation timer
             timer.cancel();
+            infoText.setText("Playing");
         }
         else
         {
             timer = new Timer();
-            timer.scheduleAtFixedRate(new Movement(), 0, 10);
+            timer.scheduleAtFixedRate(new Movement(), 0, 10);               // start default timer
             playTimer.cancel();
+            infoText.setText("");
         }
     }
     
-    private void fixFocus()
+    private void resetView()                                                // resetting to default view
+    {
+        Transform3D observatorMove = new Transform3D();
+        observatorMove.set(new Vector3f(0f,1f,5.0f));
+        universe.getViewingPlatform().getViewPlatformTransform().setTransform(observatorMove);   
+    }
+    
+    private void fixFocus()                                                 // make the canvas focused
     {
         canvas.requestFocusInWindow();
     }
     
     public static void main(String[] args) {
         System.setProperty("sun.awt.noerasebackground", "true");
-        SCARAjava3d thisObject = new SCARAjava3d();
-        thisObject.fixFocus();
+        SCARAjava3d app = new SCARAjava3d();
+        app.fixFocus();
     }
     
-    private class Movement extends TimerTask{
+    private class Movement extends TimerTask{                               // default application timer, moving via keyboard and gui
         @Override
         public void run() {  
             i=0;
@@ -490,7 +535,7 @@ public class SCARAjava3d extends JFrame implements KeyListener {
                 {
                     tgCrate.setTransform(arm3Position);        
                 }
-                else if(crateUpSteps > 0)
+                else if(crateUpSteps > 0)                                               // falling crate animation
                 {
                     positionFix.setTranslation(new Vector3f(0f, crateUpSteps*0.01f-height-0.2f, 0f));
                     arm3Position.mul(positionFix);
@@ -501,11 +546,12 @@ public class SCARAjava3d extends JFrame implements KeyListener {
         }
     }
     
-    private class PlayRecording extends TimerTask{
+    private class PlayRecording extends TimerTask{                      // animation timer
         @Override
         public void run() {
             if(playing)
             {
+                if(i==0) tgCrate.setTransform(crateStartPosition);
                 Transform3D tempRotation = new Transform3D();
                 Transform3D tempPosition = new Transform3D();
                 tempPosition.set(new Vector3f(0.3f, 0.35f, 0f));
@@ -540,7 +586,7 @@ public class SCARAjava3d extends JFrame implements KeyListener {
                     crateGround = true;
                 }
                 i++;
-                if(i>=recordedAngles1.size())
+                if(i>=recordedAngles1.size())                           // start animation again
                 {
                     i=0;
                     tgCrate.setTransform(crateStartPosition);
