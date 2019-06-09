@@ -23,6 +23,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextArea;
 import javax.swing.SwingConstants;
+import javax.swing.UIManager;
 import javax.vecmath.*;
 
 public class SCARAjava3d extends JFrame implements KeyListener {
@@ -500,6 +501,11 @@ public class SCARAjava3d extends JFrame implements KeyListener {
     
     public static void main(String[] args) {
         System.setProperty("sun.awt.noerasebackground", "true");
+        try 
+        { 
+            UIManager.setLookAndFeel("javax.swing.plaf.nimbus.NimbusLookAndFeel"); 
+        } 
+        catch (Exception e) {} 
         SCARAjava3d app = new SCARAjava3d();
         app.fixFocus();
     }
