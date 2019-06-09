@@ -240,6 +240,7 @@ public class SCARAjava3d extends JFrame implements KeyListener {
         crateStartPosition.set(new Vector3f(0.8f, 0.165f, 0.5f));
         tgCrate = new TransformGroup(cratePosition);
         tgCrate.setCapability(TransformGroup.ALLOW_TRANSFORM_WRITE);
+        tgCrate.setCapability(TransformGroup.ALLOW_TRANSFORM_READ);
         tgCrate.addChild(crate);
         tgFloor.addChild(tgCrate);
     }
@@ -426,7 +427,8 @@ public class SCARAjava3d extends JFrame implements KeyListener {
     
     private void grabCrate()
     {
-        moveCrate = !moveCrate;
+        if(!moveCrate && checkGrab()) moveCrate = true;
+        else moveCrate = false;
         if (moveCrate) crateUpSteps = upSteps;
         if(recording)
         {
@@ -435,7 +437,23 @@ public class SCARAjava3d extends JFrame implements KeyListener {
            recordedHeights.add(height);
            recordedGrabs.add(moveCrate);            
         }
-
+    }
+    
+    private boolean checkGrab()
+    {
+        Vector3f armVector = new Vector3f();
+        Vector3f crateVector = new Vector3f();
+        Vector3f heightVector = new Vector3f();
+        Transform3D armHeight = new Transform3D();
+        tgArm3.getLocalToVworld(arm3Position);
+        tgArm3.getTransform(armHeight);
+        arm3Position.get(armVector);
+        armHeight.get(heightVector);
+        armVector.y = heightVector.y;
+        tgCrate.getTransform(cratePosition);
+        cratePosition.get(crateVector);                                                 // check if manipulator is over the crate
+        if(Math.abs(armVector.x-crateVector.x) < 0.1f && Math.abs(armVector.z-crateVector.z) < 0.1f && Math.abs(armVector.y+0.4f-crateVector.y) < 0.1f) return true;
+        return false;
     }
     
     private void record()
